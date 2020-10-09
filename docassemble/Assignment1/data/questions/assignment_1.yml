@@ -1,0 +1,254 @@
+# ASSIGNMENT 1
+# You will be implementing the Legal Aid Bureau's interview to determine
+# whether an applicant is eligible for legal aid. 
+# The total score that can be awarded for this assignment is 20.
+# The reference interview is found here:
+# https://guided.page/interview?i=docassemble.playground3%3Alab.yml#page1
+# Resources are found here:
+# https://lab.mlaw.gov.sg/legal-services/taking-the-means-test/
+# https://sso.agc.gov.sg/SL/LAAA1995-RG1#Sc1-
+---
+# MODIFY THIS BLOCK
+# Please fill in the relevant information.
+metadata:
+  title: |
+    Legal Aid Bureau Eligibility Interview
+  short title: |
+    LAB Eligibility Interview
+  description: |
+    This interview helps determine the elibility of an applicant for legal aid at the Legal Aid Bureau
+  authors:
+    - name: Aaron Cheuk
+      organization: COR-LAW-2215 Digital Intelligence for Lawyers
+  revision_date: 2020-10-09
+---
+# DO NOT MODIFY THIS BLOCK. SCORE: 5
+# Implement a check_nric function in a module file called validation.py.
+# It should check for (1) correct format and (2) that it is a valid NRIC.
+# Use a regular expression to test for the correct format.
+# Implement the checksum algorithm to determine whether the NRIC is valid.
+# The NRIC checksum algorithm can be found on:
+# http://www.ngiam.net/NRIC/ or Wikipedia
+# Test your function using data from: https://samliew.com/nric-generator
+modules:
+  .validation
+---
+mandatory: True
+code: |
+  NRIC
+---
+question: |
+  Please provide your NRIC:
+subquestion:  |
+  Please key in your NRIC number with the first and last alphabet in caps.
+fields:
+  - no label: NRIC
+    validate: check_nric
+---
+# DO NOT MODIFY THIS BLOCK
+# This is your objects block.
+# Individual is used for the applicant.
+# DAList is used for household_incomes.
+objects:
+  applicant: Individual
+  household_members: DAList.using(object_type=Individual, there_is_another=False)
+  address: Address
+---
+# MODIFY THIS BLOCK (BUT DO NOT MOVE IT). SCORE: 5
+# Use this block to control the interview logic.
+# Include this line somewhere in your code: 
+#   household_members.append(applicant)
+# This line of code adds the applicant to the household_members DAList.
+# This ensures that the applicant appears in the household_members.table.
+mandatory: True
+code: |
+  applicant.name
+  applicant.birthdate
+  applicant.income
+  applicant.sc_or_pr
+  if not applicant.sc_or_pr:
+    applicant.under_HCCAICA
+    if not applicant.under_HCCAICA:
+      ineligible_screen_residence
+  if applicant.age_in_years() < 21:
+    ineligible_screen_age
+  applicant.address
+  if address.country != "SG":
+    ineligible_screen_residence
+  target_variable
+  household_members.append(applicant)
+---
+question: |
+  Please enter your personal information as indicated on your NRIC or Passport.
+fields:
+  - First Name: applicant.name.first
+  - Last Name: applicant.name.last
+  - Birthdate: applicant.birthdate
+    datatype: date
+  - Your total income in the past 12 months: applicant.income
+    datatype: currency
+    min: 0
+    default: 0
+---
+question:  |
+  Are you a Singapore Citizen or a Permanent Resident of Singapore?
+yesno: applicant.sc_or_pr
+---
+question:  |
+  Are you a citizen or resident of contracting states who are involved in applications under the Hague Convention on the Civil Aspects of International Child Abduction?
+subquestion:  |
+  For more information, please refer to Singapore Central Authority's website [here](https://www.msf.gov.sg/Singapore-Central-Authority/Pages/Hague-Convention-on-the-Civil-Aspects-of-International-Child-Abduction.aspx). 
+yesno: applicant.under_HCCAICA
+---
+question: |
+  What is your current residential address?
+fields:
+  - Address: address.address
+  - Unit: address.unit
+    required: False
+  - City: address.city
+    required: False
+  - State: address.state
+    required: False
+  - Postal Code: address.postal_code
+  - Country: address.country
+    code: |
+      countries_list()
+---
+continue button field: target_variable
+question:  |
+  We will now proceed to conduct a preliminary means test.
+subquestion:  |
+  Please have prepared the following documents:
+  
+  1. Your household members' names, birthdate and annual income.
+  2. The annual value of your place of residence.
+  3. The total amount of your savings and non-cpf investments.
+  
+  When you have the documents ready, press Continue.
+---
+# DO NOT MODIFY THIS BLOCK OR MOVE IT
+mandatory: True
+code: |
+  if household_members.there_are_any:
+    review_household_members
+---
+# MODIFY THIS BLOCK (BUT DO NOT MOVE IT). SCORE: 5
+# Use this block to write code that calculates the average PCHI
+mandatory: True
+code: |
+  total_household_income = 0
+  for x in household_members:
+    total_household_income = total_household_income + x.income
+    
+  number = len(household_members) * 12
+  PCHI = total_household_income / number
+  if PCHI > 950:
+    ineligible_screen_means_test
+  else: end_screen
+---
+# DO NOT MODIFY THIS BLOCK
+table: household_members.table
+rows: household_members
+columns: 
+  - Name: row_item
+  - Birthdate: row_item.birthdate
+  - Income: row_item.income
+edit:
+  - name.first
+---
+# DO NOT MODIFY THIS BLOCK
+question: | 
+  Please add all other household members.
+subquestion: |
+  A household member is any person residing with you and related by:
+  
+  1. blood
+  2. marriage; or
+  3. adoption.
+  
+  Press continue when you have added all household members.
+  
+  ${household_members.table}
+
+  ${household_members.add_action() }
+  
+field: review_household_members
+---
+# DO NOT MODIFY THIS BLOCK
+question: |
+  Information about your ${ordinal(i)} household member:
+fields:
+  - First Name: household_members[i].name.first
+  - Last Name: household_members[i].name.last
+  - Birthdate: household_members[i].birthdate
+    datatype: date
+  - "This person's total income in past 12 months": household_members[i].income
+    datatype: currency
+    min: 0
+    default: 0
+---
+question:  |
+  Sorry but you are ineligible for legal aid. 
+subquestion:  |
+  Legal aid is only available for Singapore citizens and permanent residents who are residing in Singapore.
+event: ineligible_screen_residence
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+question:  |
+  Sorry but you are ineligible for legal aid.
+subquestion:  |
+  As you are below the age of 21, your parent or guardian must apply for legal aid on your behalf.
+event: ineligible_screen_age
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+question:  |
+  Sorry but you are ineligible for legal aid.
+subquestion:  |
+  To qualify for legal aid, you must meet the following criteria:
+  
+  1. The average Per Capita Gross Monthly Household Income (PCHI) must be $950 or lower for the last 12 months;
+  2. The Annual Value of applicant's place of residence owned by the applicant must be $13,000 or lower; and
+  3. The total amount of your savings and non-CPF investments must be:
+  * lower than $10,000 if you are younger than 60 years old; or
+  * lower than $40,000 if you are aged 60 and above.
+  4. You must not own any property besides your place of residence.
+  
+event: ineligible_screen_means_test
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+question:  |
+  Sorry but you are ineligible for legal aid.
+subquestion:  |
+  As you are below the age of 21, your parent or guardian must apply for legal aid on your behalf.
+event: ineligible_screen_age
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+question:  |
+  We have come to the end of this interview.
+subquestion:  |
+  You have passed the first arm of the Means Test as your monthly Per Capita Household Income ("PCHI") is $ ${ PCHI }. 
+  
+  The remaining arms of the Means Test are that:
+  
+  1. The Annual Value of your place of residence must be lower than $13,000 (click [here](https://www.iras.gov.sg/irashome/Property/Property-professionals/Real-Estate-Housing-Agents/Find-out-Annual-Values/) to check the Annual Value of your property); 
+  2. The total amount of your savings and non-CPF investments must be less than $10,000 if you are younger than 60 years old, or $40,000 if you are aged 60 and above (click [here](https://lab.mlaw.gov.sg/legal-services/taking-the-means-test/) to see how to compute total savings and non-CPF investments); and
+  3. That you must now own any other property.
+   
+  Upon clearing the Means Test, please see [here](https://lab.mlaw.gov.sg/legal-services/how-do-i-apply-for-legal-aid/) for the rest of the application process.
+event: end_screen
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+# IMPLEMENT ALL YOUR QUESTION BLOCKS.
+# Implement all the question blocks correctly. Score 3
+# Improving the usability / user experience. Score 2
